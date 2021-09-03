@@ -1,14 +1,14 @@
-import argparse
-import git
-import string
+"""Helper for quickly boilerplating CTF challenges."""
 
-from pathlib import Path
+import argparse
+import string
 from dataclasses import dataclass
 from enum import Enum
+from json import dumps
+from pathlib import Path
 from typing import List, Optional
-from json import loads, dumps
-from pprint import pformat, pprint
-from shutil import copy
+
+import git
 
 
 class Type(str, Enum):
@@ -43,101 +43,96 @@ class Challenge:
     target: Optional[str]
 
 
-class ChallengeManager:
-    """Manages CTF challenges."""
+def get_repo(path: Optional[Path] = None) -> Path:
+    """
+    Returns the top-level repository directory.
 
-    def __init__(self) -> None:
-        self.challenges: List[Challenge] = []
+    :param path: Optionally, the provided path to search in.
+        Defaults to CWD.
+    :returns: A path to the directory containing `.git`.
+    """
+    if path is None:
+        path = Path.cwd()
 
-    def getRepo(self, path: Optional[Path] = None) -> Path:
-        """
-        Returns the top-level repository directory.
+    repo = git.Repo(path, search_parent_directories=True)
+    return Path(repo.working_dir)
 
-        :param path: Optionally, the provided path to search in. Defaults to CWD.
-        :returns: A path to the directory containing `.git`.
-        """
-        if path is None:
-            path = Path.cwd()
 
-        repo = git.Repo(path, search_parent_directories=True)
-        return Path(repo.working_dir)
+def create_challenge(challenge: Challenge) -> None:
+    """
+    Creates a new challenge.
 
-    def createChallenge(self, challenge: Challenge) -> None:
-        """
-        Creates a new challenge.
+    :param challenge: The challenge to create.
+    """
+    if challenge.target is None:
+        cld = get_repo() / challenge.type.value
+    else:
+        cld = Path(challenge.target)
 
-        :param challenge: The challenge to create.
-        """
-        if challenge.target is None:
-            tld = self.getRepo()
-            cld = tld / challenge.type.value
-        else:
-            cld = Path(challenge.target)
+    if not cld.exists():
+        cld.mkdir(parents=True)
 
-        if not cld.exists():
-            cld.mkdir(parents=True)
+    chal_dir = cld / challenge.name
 
-        chal_dir = cld / challenge.name
-        if not chal_dir.exists():
-            chal_dir.mkdir()
+    if not chal_dir.exists():
+        chal_dir.mkdir()
 
-        with (chal_dir / "chal.json").open("w") as f:
-            f.write(dumps(challenge.__dict__, indent=4, sort_keys=True))
+    with (chal_dir / "chal.json").open("w") as chal_desc:
+        chal_desc.write(dumps(challenge.__dict__, indent=4, sort_keys=True))
 
-        if challenge.remote is not None:
-            (chal_dir / "deploy").mkdir()
-            with (chal_dir / "deploy.sh").open("w") as f:
-                f.write(f"#!/bin/bash\n{' '.join(challenge.remote)}")
-            templates_to_write = {}
-            for template in (
-                Path(__file__).with_name("templates") / "deploy"
-            ).iterdir():
-                with template.open("r") as f:
-                    templates_to_write[template.name] = f.read()
+    if challenge.remote is not None:
+        (chal_dir / "deploy").mkdir()
+        with (chal_dir / "deploy.sh").open("w") as deploy_file:
+            deploy_file.write(f"#!/bin/bash\n{' '.join(challenge.remote)}")
+        templates_to_write = {}
+        for template in (Path(__file__).with_name("templates") / "deploy").iterdir():
+            with template.open("r") as template_file:
+                templates_to_write[template.name] = template_file.read()
 
-            all_formatters = {
-                "name": challenge.name,
-                "dist_path": str(chal_dir / "dist"),
-                "port": str(challenge.ports[0]),
-            }
-            for template_name, template_content in templates_to_write.items():
-                with (chal_dir / "deploy" / template_name).open("w") as f:
+        all_formatters = {
+            "name": challenge.name,
+            "dist_path": str(chal_dir / "dist"),
+            "port": str(challenge.ports[0]),
+        }
+        for template_name, template_content in templates_to_write.items():
+            with (chal_dir / "deploy" / template_name).open("w") as template_target:
 
-                    formatters = {
-                        t[1]: all_formatters[t[1]]
-                        for t in string.Formatter().parse(template_content)
-                        if t[1] is not None
-                    }
-                    f.write(
-                        template_content.format(
-                            **formatters
-                        )
-                    )
+                formatters = {
+                    t[1]: all_formatters[t[1]]
+                    for t in string.Formatter().parse(template_content)
+                    if t[1] is not None
+                }
+                template_target.write(template_content.format(**formatters))
 
-        (chal_dir / "solve").mkdir()
-        with (chal_dir / "solve" / "flag.txt").open("w") as f:
-            f.write(challenge.flag)
-        (chal_dir / "src").mkdir()
-        with (chal_dir / "src" / "Makefile").open("w") as f:
-            f.write(
-                "CC=\n"
-                "CXX=\n"
-                "CFLAGS=\n"
-                "CXXFLAGS=\n"
-                "LDFLAGS=\n"
-                "\n"
-                f"all: {challenge.name}\n"
-                "\n"
-                f"{challenge.name}: {challenge.name}.c\n"
-                "\t$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^\n"
-            )
+    (chal_dir / "solve").mkdir()
 
-        (chal_dir / "dist").mkdir()
+    with (chal_dir / "solve" / "flag.txt").open("w") as flag_file:
+        flag_file.write(challenge.flag)
 
+    (chal_dir / "src").mkdir()
+
+    with (chal_dir / "src" / "Makefile").open("w") as make_file:
+        make_file.write(
+            "CC=\n"
+            "CXX=\n"
+            "CFLAGS=\n"
+            "CXXFLAGS=\n"
+            "LDFLAGS=\n"
+            "\n"
+            f"all: {challenge.name}\n"
+            "\n"
+            f"{challenge.name}: {challenge.name}.c\n"
+            "\t$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^\n"
+        )
+
+    (chal_dir / "dist").mkdir()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="mkchal", description="Create a CTF challenge.")
+    """Main CLI entrypoint to mkchal"""
+    parser = argparse.ArgumentParser(
+        prog="mkchal", description="Create a CTF challenge."
+    )
     parser.add_argument(
         "--type",
         "-t",
@@ -173,7 +168,7 @@ def main() -> None:
         "-D",
         choices=["Easy", "Medium", "Hard"],
         required=True,
-        help="The difficulty level of the challenge."
+        help="The difficulty level of the challenge.",
     )
     parser.add_argument(
         "--flag",
@@ -188,7 +183,10 @@ def main() -> None:
         nargs="+",
         type=Path,
         required=True,
-        help="The paths to files that the challenge provides. Example: `dist/chal dist/chal.tar.gz`",
+        help=(
+            "The paths to files that the challenge provides. "
+            "Example: `dist/chal dist/chal.tar.gz`"
+        ),
     )
     parser.add_argument(
         "--ports",
@@ -217,12 +215,13 @@ def main() -> None:
         required=False,
         default=None,
         help=(
-            "An optional target directory to create the challenge in. If not specified, uses ./category/name"
-        )
+            "An optional target directory to create the challenge in. "
+            "If not specified, uses ./category/name"
+        ),
     )
     args = parser.parse_args()
 
-    c = Challenge(
+    chal = Challenge(
         type=args.type,
         name=args.name,
         author=args.author,
@@ -232,12 +231,15 @@ def main() -> None:
         provides=list(map(str, args.provides)),
         ports=args.ports,
         remote=args.remote,
-        target=args.target
+        target=args.target,
     )
 
-    cm = ChallengeManager()
-    cm.createChallenge(c)
-    print(f"Done. Run `git checkout -b {args.type}_{args.name}` to switch to a branch and start working.")
+    create_challenge(chal)
+    print(
+        f"Done. Run `git checkout -b {args.type}_{args.name}` to switch "
+        "to a branch and start working."
+    )
+
 
 if __name__ == "__main__":
     main()
