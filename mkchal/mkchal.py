@@ -55,6 +55,11 @@ def get_repo(path: Optional[Path] = None) -> Path:
         path = Path.cwd()
 
     repo = git.Repo(path, search_parent_directories=True)
+    if repo is None:
+        raise AssertionError(
+            "No git repo! Please specify --target or create a git repository."
+        )
+
     return Path(repo.working_dir)
 
 
