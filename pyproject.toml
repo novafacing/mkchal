@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "mkchal"
+version = "0.1.0"
+description = "A tool for quickly generating CTF challenge deployments."
+authors = ["novafacing <rowanbhart@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.scripts]
+mkchal = 'mkchal:main'
+
+[tool.poetry.dependencies]
+python = "^3.7"
+GitPython = "^3.1.20"
+
+[tool.poetry.dev-dependencies]
+isort = "^5.9.3"
+black = "^21.8b0"
+pylint = "^2.10.2"
+pytest = "^6.2.5"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
