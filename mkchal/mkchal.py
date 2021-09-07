@@ -198,7 +198,8 @@ def main() -> None:
         "-P",
         nargs="+",
         type=int,
-        required=True,
+        required=False,
+        default=[],
         help="The ports that the challenge provides. Example: 1337 1338",
     )
     parser.add_argument(
