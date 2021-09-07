@@ -1,10 +1,11 @@
 # Installation
 
-`$ \python3 -m pip install -r requirements.txt`
+`$ \python3 -m pip install git+ssh://git@github.com/novafacing/mkchal.git`
 
 # Usage
 
 ```
+$ \python3 -m mkchal -h
 usage: mkchal.py [-h] --type {rev,pwn,crypto,web,misc} --name NAME --author AUTHOR --description DESCRIPTION
                  [DESCRIPTION ...] --flag FLAG --provides PROVIDES [PROVIDES ...] --ports PORTS [PORTS ...]
                  [--remote REMOTE [REMOTE ...]]
