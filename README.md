@@ -1,6 +1,6 @@
 # Installation
 
-`$ \python3 -m pip install git+ssh://git@github.com/novafacing/mkchal.git`
+`$ \python3 -m pip install git+https://github.com/novafacing/mkchal.git`
 
 # Usage
 
